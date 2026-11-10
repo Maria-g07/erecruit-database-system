@@ -1,0 +1,273 @@
+Ι) Δημιουργήσαμε τον παρακάτω πίνακα
+
+
+CREATE TABLE interviews (
+id int(11) NOT NULL AUTO_INCREMENT,
+recruiter_username VARCHAR(12) NOT NULL,
+cand_username VARCHAR(12) NOT NULL,
+hmeromhnia DATETIME,
+duration int(11),
+comments TEXT,
+personality TINYINT,
+education TINYINT,
+experience TINYINT,
+PRIMARY KEY (id),
+CONSTRAINT INTERVIEWS_RECR FOREIGN KEY (recruiter_username) REFERENCES recruiter(username) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT INTERVIEWS_CAND FOREIGN KEY (cand_username) REFERENCES candidate(username) ON DELETE CASCADE ON UPDATE CASCADE
+)engine=InnoDB;
+
+
+
+ΙΙ) Δημιουργήσαμε τον παρακάτω πίνακα. Ο κάθε τομέας θεωρούμε ότι έχει ένα parent_id, όπου ο γονέας έχει 0, ενώ το παιδί έχει το id του γονέα του. Στα δεδομένα που εισάγουμε (βλ. παρακάτω ερώτημα) έχουμε δύο επίπεδα:
+'Computer Engineering'
+o'Databases'
+'MySQL'
+'NoSQL'
+o'Web Development'
+'PHP'
+'Javascript'
+
+
+
+CREATE TABLE sectors (
+id int(11) NOT NULL AUTO_INCREMENT,
+afm char(9) NOT NULL, 
+title VARCHAR(30) NOT NULL,
+description VARCHAR(200),
+parent_id int(11),
+PRIMARY KEY (id),
+CONSTRAINT SECTORS_AFM FOREIGN KEY (afm) REFERENCES etaireia(afm) ON DELETE CASCADE ON UPDATE CASCADE
+)engine=InnoDB;
+
+
+
+ΙΙΙ) Δημιουργήσαμε τον παρακάτω πίνακα
+
+CREATE TABLE history (
+id int(11) NOT NULL AUTO_INCREMENT,
+username VARCHAR(12) NOT NULL,
+hmeromhnia DATETIME DEFAULT CURRENT_TIMESTAMP,
+success tinyint,
+table_name VARCHAR(30),
+action ENUM('insert', 'update', 'delete'),
+PRIMARY KEY (id),
+CONSTRAINT HISTORY_USERNAME FOREIGN KEY (username) REFERENCES user(username) ON DELETE CASCADE ON UPDATE CASCADE
+)engine=InnoDB;
+
+
+1. Το διάγραμμα της βάσης φαίνεται στο επόμενο σχήμα
+
+
+2. Παρακάτω βάζουμε στη βάση με εντολές insert μερικά ενδεικτικά δεδομένα.
+insert into interviews (recruiter_username, cand_username, hmeromhnia, duration, comments, personality, education, experience) values 
+('msmith','cleogeo','2019-22-01 10:00','30','The ideal cadidate','5','5','5'),
+('varcon82','abrown','2019-21-01 16:00','45','A very good cadidate','4','4','4')
+;
+
+insert into sectors(afm,title,description,parent_id) values
+('123432211','Computer Engineering','Computer Engineering, Software Development',0),
+('123432211','Databases','Baseis dedomenwn',1),
+('123432211','MySQL','',2),
+('123432211','NoSQL','',2),
+('123432211','Web Development','Anaptyxh efarmogwn ston isto',1),
+('123432211','PHP','server side technology',5),
+('123432211','Javascript','client side technology',5),
+('023453344','Logistika','Logistikes yphresies',0)
+;
+
+insert into history(username,hmeromhnia,success,table_name,action) values
+('varcon82','2019-15-01 15:00','1','interviews','insert'),
+('varcon82','2019-15-01 15:05','1','interviews','update'),
+('cleogeo','2019-15-01 16:05','1','applies','delete')
+;
+
+3. Τα 5 MySQL queries φαίνονται παρακάτω:
+SELECT user.name, user.surname, etaireia.name, job.id, job.salary, COUNT(*) AS app_no 
+FROM user, etaireia, job, applies, recruiter 
+WHERE user.username=job.recruiter AND recruiter.username=user.username AND recruiter.firm = etaireia.AFM AND job.salary > 1900 AND job.id=applies.job_id 
+GROUP BY applies.job_id 
+ 
+ 
+SELECT candidate.username, candidate.certificates, COUNT(has_degree.grade) AS degrees_no, AVG(has_degree.grade) AS grade_avg 
+FROM candidate, has_degree 
+WHERE candidate.username=has_degree.cand_usrname 
+GROUP BY has_degree.cand_usrname 
+HAVING COUNT(has_degree.grade)>1
+ 
+ 
+SELECT applies.cand_usrname, COUNT(applies.job_id) AS appl_no, AVG(job.salary) AS salaray_avg 
+FROM applies, job 
+WHERE applies.job_id=job.id 
+GROUP BY applies.cand_usrname 
+HAVING AVG(job.salary)>1800 
+ 
+ 
+ SELECT etaireia.name, job.edra,job.position, requires.antikeim_title 
+ FROM etaireia, job,requires, recruiter
+ WHERE job.id=requires.job_id AND job.edra='Patra, Greece' AND job.position LIKE '%Program%' AND job.recruiter=recruiter.username AND recruiter.firm=etaireia.AFM
+ 
+ 
+ SELECT job.recruiter, COUNT(job.recruiter) AS jobs_no, AVG(job.salary) AS salary_avg, COUNT(interviews.recruiter_username) AS interviews_no 
+ FROM job LEFT JOIN interviews
+ ON interviews.recruiter_username=job.recruiter
+ GROUP BY job.recruiter, interviews.recruiter_username
+ HAVING COUNT(job.recruiter)>=2
+ ORDER BY AVG(job.salary) DESC
+
+4. Το stored procedure και τα triggers που ζητούνται φαίνονται παρακάτω
+DELIMITER ;;
+CREATE PROCEDURE a
+(IN id INT(4))
+BEGIN
+  SELECT interviews.cand_username, COUNT(cand_username), SUM(interviews.personality)+SUM(interviews.education)+SUM(interviews.experience) AS total,SUM(interviews.personality),SUM(interviews.education),SUM(interviews.experience)
+  FROM interviews, applies
+  WHERE applies.job_id=id AND applies.cand_usrname=interviews.cand_username AND interviews.personality>0 AND interviews.education>0 AND interviews.experience>0 AND interviews.hmeromhnia > NOW()
+  GROUP BY interviews.cand_username
+  ORDER BY total;
+
+  SELECT interviews.cand_username, CONCAT_WS("-",IF(interviews.personality=0,"failed the interview",""),IF(interviews.education=0,"inadequate education",""),IF(interviews.experience=0,"no prior experience","")) AS reason
+  FROM interviews, applies
+  WHERE applies.job_id=id AND applies.cand_usrname=interviews.cand_username AND (interviews.personality=0 OR interviews.education=0 OR interviews.experience=0  ) ;
+
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER i_candidate AFTER INSERT ON candidate
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'candidate', 'insert');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_candidate AFTER UPDATE ON candidate
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'candidate', 'update');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER d_candidate AFTER DELETE ON candidate
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'candidate', 'delete');
+END;;
+	
+DELIMITER ;;	
+CREATE TRIGGER i_recruiter AFTER INSERT ON recruiter
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'recruiter', 'insert');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_recruiter AFTER UPDATE ON recruiter
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'recruiter', 'update');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER d_recruiter AFTER DELETE ON recruiter
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'recruiter', 'delete');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER i_user AFTER INSERT ON `user`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'user', 'insert');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_user AFTER UPDATE ON `user`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'user', 'update');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER d_user AFTER DELETE ON `user`
+FOR EACH user
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'user', 'delete');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER i_etaireia AFTER INSERT ON `etaireia`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'etaireia', 'insert');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_etaireia AFTER UPDATE ON `etaireia`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'etaireia', 'update');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_etaireia2 BEFORE UPDATE ON `etaireia`
+FOR EACH ROW
+BEGIN
+  SET NEW.AFM = OLD.AFM;
+  SET NEW.DOY = OLD.DOY;
+  SET NEW.name = OLD.name;
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER d_etaireia AFTER DELETE ON `etaireia`
+FOR EACH user
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'etaireia', 'delete');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER i_job AFTER INSERT ON `job`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'job', 'insert');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER u_job AFTER UPDATE ON `job`
+FOR EACH ROW
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'job', 'update');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER d_job AFTER DELETE ON `job`
+FOR EACH user
+BEGIN
+  INSERT INTO history(username,hmeromhnia,success,table_name,action)
+  VALUES(SUSER_SNAME(), NOW(), 1, 'job', 'delete');
+END;;
+
+DELIMITER ;;
+CREATE TRIGGER PreventAppliesDeletion
+BEFORE DELETE ON applies
+FOR EACH ROW
+BEGIN
+  IF old.job_id IN (SELECT id FROM jobs WHERE submission_date<NOW()) THEN -- abort deletion
+    SIGNAL SQLSTATE '45000' -- "unhandled user-defined exception"
+      -- custom error message that will be returned by MySQL
+      SET MESSAGE_TEXT = 'You are not allowed to remove this record!!';
+  END IF;
+END;;
